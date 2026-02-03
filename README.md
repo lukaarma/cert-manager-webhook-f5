@@ -5,3 +5,7 @@
 # cert-manager-webhook-f5
 
 This is a Cert-manager ACME DNS01 webhook provider for F5 tecnologies, currently only F5 Distributed Cloud (F5XC).
+
+## Development
+
+This is based on the example repository and inspired by two other webhook providers that really helped me to make sense of the structure of the plugin: [cert-manager-webhook-hetzner](https://github.com/vadimkim/cert-manager-webhook-hetzner) and [alidns-webhook](https://github.com/pragkent/alidns-webhook/tree/master)
