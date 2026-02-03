@@ -1,0 +1,9 @@
+{
+    "tenantName": "f5xc-tenant-cname",
+    "zoneName": "f5xc-zone-name",
+    "RRSetGroup": "f5xc-RRSet-Group-name",
+    "apiKeySecretRef": {
+        "name": "f5xc-secret",
+        "key": "api-key"
+    }
+}

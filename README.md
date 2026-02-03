@@ -9,3 +9,19 @@ This is a Cert-manager ACME DNS01 webhook provider for F5 tecnologies, currently
 ## Development
 
 This is based on the example repository and inspired by two other webhook providers that really helped me to make sense of the structure of the plugin: [cert-manager-webhook-hetzner](https://github.com/vadimkim/cert-manager-webhook-hetzner) and [alidns-webhook](https://github.com/pragkent/alidns-webhook/tree/master)
+
+### Running the test suite
+
+All DNS providers **must** run the DNS01 provider conformance testing suite,
+else they will have undetermined behaviour when used with cert-manager.
+
+**It is essential that you configure and run the test suite when creating a
+DNS01 webhook.**
+
+An example configuration has been provided in testdata, the API key must be replaced with a valid one.
+
+You can run the test suite with:
+
+```bash
+TEST_ZONE_NAME=example.com. make test
+```
