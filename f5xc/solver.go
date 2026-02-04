@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -31,15 +32,43 @@ func (solver *F5XCDNSProviderSolver) Name() string {
 // cert-manager itself will later perform a self check to ensure that the
 // solver has correctly configured the DNS provider.
 func (solver *F5XCDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
-	cfg, err := loadConfig(ch.Config)
+	conf, err := loadConfig(ch.Config)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Config %+v\n", cfg)
-	fmt.Printf("Challenge %+v\n", ch)
+	apiKey, err := solver.getSecret(ch.ResourceNamespace, conf.ApiKeySecretRef)
+	if err != nil {
+		return err
+	}
 
-	// TODO: add code that sets a record in the DNS provider's console
+	f5xcClient := NewClient(conf.TenantName, apiKey)
+
+	klog.Infof("Got challenge for %s", ch.DNSName)
+
+	resouceRecord, err := f5xcClient.getTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName)
+	if err != nil {
+		return err
+	}
+
+	if resouceRecord == nil {
+		klog.Infof("No existing TXT record %q found in group %q under zone %q, a new TXT record will be created", resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
+
+		resouceRecord, err = f5xcClient.createTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName, ch.Key)
+	} else {
+		klog.Infof("Found existing record %q in group %q under zone %q, updating it", resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
+
+		if slices.Contains(resouceRecord.RRSet.TXTRecord.Values, ch.Key) {
+			klog.Info("Challenge key already exists in record %q in group %q under zone %q, not applying any change", ch.Key, resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
+
+			return nil
+		}
+
+		resouceRecord, err = f5xcClient.updateTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName, resouceRecord, ch.Key)
+	}
+
+	klog.Infof("Created DNS challenge record for %s", ch.DNSName)
+
 	return nil
 }
 
@@ -97,16 +126,18 @@ func (solver *F5XCDNSProviderSolver) getSecret(namespace string, ref corev1.Secr
 
 // loadConfig is a small helper function that decodes JSON configuration into
 // the typed config struct.
-func loadConfig(cfgJSON *extapi.JSON) (F5XCDNSProviderConfig, error) {
-	cfg := F5XCDNSProviderConfig{}
+func loadConfig(confJSON *extapi.JSON) (f5xcDNSProviderConfig, error) {
+	conf := f5xcDNSProviderConfig{}
 	// handle the 'base case' where no configuration has been provided
-	if cfgJSON == nil {
+	if confJSON == nil {
 		klog.Infof("Empty config loaded")
-		return cfg, nil
+		return conf, nil
 	}
-	if err := json.Unmarshal(cfgJSON.Raw, &cfg); err != nil {
-		return cfg, fmt.Errorf("error decoding solver config: %+v", err)
+	if err := json.Unmarshal(confJSON.Raw, &conf); err != nil {
+		return conf, fmt.Errorf("error decoding solver config: %+v", err)
 	}
 
-	return cfg, nil
+	klog.Infof("Config loaded")
+
+	return conf, nil
 }
