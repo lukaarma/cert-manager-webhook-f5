@@ -14,6 +14,11 @@ const (
 	baseUrl = "https://%s.console.ves.volterra.io/api"
 )
 
+const (
+	add_key    updateMode = iota
+	delete_key updateMode = iota
+)
+
 func NewClient(tenantName string, apiKey string) *f5xcClient {
 	return &f5xcClient{
 		BaseURL: fmt.Sprintf(baseUrl, tenantName),
@@ -65,13 +70,15 @@ func (c *f5xcClient) send(req *http.Request, resData interface{}) error {
 
 		return err
 	}
-	klog.Errorf("%v+", unexpectedRes)
+	klog.Errorf("%+v", unexpectedRes)
 
 	return fmt.Errorf("Invalid status code: %d", res.StatusCode)
 }
 
 func (c *f5xcClient) getTXTResourceRecord(zone string, rrgroup string, rrname string) (*f5xcTXTResouceRecord, error) {
 	const endpoint = "config/dns/namespaces/system/dns_zones/%s/rrsets/%s/%s/TXT"
+
+	klog.Infof("Getting record %q from group %q for zone %q", rrname, rrgroup, zone)
 
 	url, err := url.JoinPath(c.BaseURL, fmt.Sprintf(endpoint, zone, rrgroup, rrname))
 	if err != nil {
@@ -105,6 +112,7 @@ func (c *f5xcClient) createTXTResourceRecord(zone string, rrgroup string, rrname
 		DnsZoneName: zone,
 		GroupName:   rrgroup,
 		RRSet: f5xcTXTrrset{
+			TTL: 60,
 			TXTRecord: f5xcTXTRecord{
 				Name:   rrname,
 				Values: []string{key},
@@ -132,7 +140,7 @@ func (c *f5xcClient) createTXTResourceRecord(zone string, rrgroup string, rrname
 	return res, nil
 }
 
-func (c *f5xcClient) updateTXTResourceRecord(zone string, rrgroup string, rrname string, reqBody *f5xcTXTResouceRecord, key string) (*f5xcTXTResouceRecord, error) {
+func (c *f5xcClient) updateTXTResourceRecord(zone string, rrgroup string, rrname string, reqBody *f5xcTXTResouceRecord, key string, mode updateMode) (*f5xcTXTResouceRecord, error) {
 	const endpoint = "config/dns/namespaces/system/dns_zones/%s/rrsets/%s/%s/TXT"
 
 	url, err := url.JoinPath(c.BaseURL, fmt.Sprintf(endpoint, zone, rrgroup, rrname))
@@ -140,7 +148,18 @@ func (c *f5xcClient) updateTXTResourceRecord(zone string, rrgroup string, rrname
 		return nil, err
 	}
 
-	reqBody.RRSet.TXTRecord.Values = append(reqBody.RRSet.TXTRecord.Values, key)
+	switch mode {
+	case add_key:
+		reqBody.RRSet.TXTRecord.Values = append(reqBody.RRSet.TXTRecord.Values, key)
+	case delete_key:
+		for i, v := range reqBody.RRSet.TXTRecord.Values {
+			if v == key {
+				reqBody.RRSet.TXTRecord.Values = append(reqBody.RRSet.TXTRecord.Values[:i], reqBody.RRSet.TXTRecord.Values[i+1:]...)
+			}
+		}
+	default:
+		return nil, fmt.Errorf("Invalid mode %q", mode)
+	}
 
 	reqBodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -160,4 +179,27 @@ func (c *f5xcClient) updateTXTResourceRecord(zone string, rrgroup string, rrname
 	}
 
 	return res, nil
+}
+
+func (c *f5xcClient) deleteTXTResourceRecord(zone string, rrgroup string, rrname string) error {
+	const endpoint = "config/dns/namespaces/system/dns_zones/%s/rrsets/%s/%s/TXT"
+
+	url, err := url.JoinPath(c.BaseURL, fmt.Sprintf(endpoint, zone, rrgroup, rrname))
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	res := &f5xcTXTResouceRecord{}
+
+	err = c.send(req, &res)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

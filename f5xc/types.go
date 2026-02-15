@@ -24,6 +24,8 @@ type f5xcDNSProviderConfig struct {
 	RRName          string                   `json:"rrName"`
 }
 
+type updateMode int
+
 type f5xcClient struct {
 	BaseURL string
 	ApiKey  string
