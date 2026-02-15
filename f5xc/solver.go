@@ -36,11 +36,13 @@ func (solver *F5XCDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) erro
 
 	conf, err := loadConfig(ch.Config)
 	if err != nil {
+		klog.Errorf("encountered an error, check cert-manager logs!")
 		return err
 	}
 
 	apiKey, err := solver.getSecret(ch.ResourceNamespace, conf.ApiKeySecretRef)
 	if err != nil {
+		klog.Errorf("encountered an error, check cert-manager logs!")
 		return err
 	}
 
@@ -48,6 +50,7 @@ func (solver *F5XCDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) erro
 
 	resouceRecord, err := f5xcClient.getTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName)
 	if err != nil {
+		klog.Errorf("encountered an error, check cert-manager logs!")
 		return err
 	}
 
@@ -68,6 +71,7 @@ func (solver *F5XCDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) erro
 	}
 
 	if err != nil {
+		klog.Errorf("encountered an error, check cert-manager logs!")
 		return err
 	}
 
@@ -87,11 +91,13 @@ func (solver *F5XCDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) erro
 
 	conf, err := loadConfig(ch.Config)
 	if err != nil {
+		klog.Errorf("encountered an error, check cert-manager logs!")
 		return err
 	}
 
 	apiKey, err := solver.getSecret(ch.ResourceNamespace, conf.ApiKeySecretRef)
 	if err != nil {
+		klog.Errorf("encountered an error, check cert-manager logs!")
 		return err
 	}
 
@@ -99,6 +105,7 @@ func (solver *F5XCDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) erro
 
 	resouceRecord, err := f5xcClient.getTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName)
 	if err != nil {
+		klog.Errorf("encountered an error, check cert-manager logs!")
 		return err
 	}
 
@@ -123,6 +130,7 @@ func (solver *F5XCDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) erro
 	}
 
 	if err != nil {
+		klog.Errorf("encountered an error, check cert-manager logs!")
 		return err
 	}
 
@@ -153,10 +161,10 @@ func (solver *F5XCDNSProviderSolver) Initialize(kubeClientConfig *rest.Config, s
 
 func (solver *F5XCDNSProviderSolver) getSecret(namespace string, ref corev1.SecretKeySelector) (string, error) {
 	if ref.Name == "" {
-		return "", fmt.Errorf("Missing secret ref name")
+		return "", fmt.Errorf("missing secret ref name")
 	}
 	if ref.Key == "" {
-		return "", fmt.Errorf("Missing secret key name")
+		return "", fmt.Errorf("missing secret key name")
 	}
 
 	klog.Infof("Loading secret key %q not from secret %s/%s\"", ref.Key, namespace, ref.Name)
