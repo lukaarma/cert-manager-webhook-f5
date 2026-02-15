@@ -41,6 +41,13 @@ type f5xcTXTResouceRecord struct {
 	RRSet       f5xcTXTrrset `json:"rrset"`
 }
 
+func (txtRR *f5xcTXTResouceRecord) isEmpty() bool {
+	return txtRR.DnsZoneName == "" &&
+		txtRR.Namespace == "" &&
+		txtRR.RecordName == "" &&
+		txtRR.Type == ""
+}
+
 type f5xcTXTrrset struct {
 	Description string        `json:"description"`
 	TTL         int           `json:"ttl"`

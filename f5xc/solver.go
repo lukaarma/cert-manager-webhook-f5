@@ -32,6 +32,8 @@ func (solver *F5XCDNSProviderSolver) Name() string {
 // cert-manager itself will later perform a self check to ensure that the
 // solver has correctly configured the DNS provider.
 func (solver *F5XCDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
+	klog.Infof("Got challenge for %q, dns check will be done on %q", ch.DNSName, ch.ResolvedFQDN)
+
 	conf, err := loadConfig(ch.Config)
 	if err != nil {
 		return err
@@ -44,30 +46,32 @@ func (solver *F5XCDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) erro
 
 	f5xcClient := NewClient(conf.TenantName, apiKey)
 
-	klog.Infof("Got challenge for %s", ch.DNSName)
-
 	resouceRecord, err := f5xcClient.getTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName)
 	if err != nil {
 		return err
 	}
 
-	if resouceRecord == nil {
-		klog.Infof("No existing TXT record %q found in group %q under zone %q, a new TXT record will be created", resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
+	if resouceRecord.isEmpty() {
+		klog.Infof("No existing TXT record %q found in group %q under zone %q, a new TXT record will be created", conf.RRName, conf.RRGroupName, conf.ZoneName)
 
-		resouceRecord, err = f5xcClient.createTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName, ch.Key)
+		_, err = f5xcClient.createTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName, ch.Key)
 	} else {
 		klog.Infof("Found existing record %q in group %q under zone %q, updating it", resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
 
 		if slices.Contains(resouceRecord.RRSet.TXTRecord.Values, ch.Key) {
-			klog.Info("Challenge key already exists in record %q in group %q under zone %q, not applying any change", ch.Key, resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
+			klog.Infof("Challenge key already exists in record %q in group %q under zone %q, not applying any change", resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
 
 			return nil
 		}
 
-		resouceRecord, err = f5xcClient.updateTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName, resouceRecord, ch.Key)
+		_, err = f5xcClient.updateTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName, resouceRecord, ch.Key, add_key)
 	}
 
-	klog.Infof("Created DNS challenge record for %s", ch.DNSName)
+	if err != nil {
+		return err
+	}
+
+	klog.Infof("Created DNS challenge record for %s", ch.ResolvedFQDN)
 
 	return nil
 }
@@ -79,7 +83,51 @@ func (solver *F5XCDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) erro
 // This is in order to facilitate multiple DNS validations for the same domain
 // concurrently.
 func (solver *F5XCDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
-	// TODO: add code that deletes a record from the DNS provider's console
+	klog.Infof("Cleanup challenge for %s", ch.ResolvedFQDN)
+
+	conf, err := loadConfig(ch.Config)
+	if err != nil {
+		return err
+	}
+
+	apiKey, err := solver.getSecret(ch.ResourceNamespace, conf.ApiKeySecretRef)
+	if err != nil {
+		return err
+	}
+
+	f5xcClient := NewClient(conf.TenantName, apiKey)
+
+	resouceRecord, err := f5xcClient.getTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName)
+	if err != nil {
+		return err
+	}
+
+	if resouceRecord.isEmpty() {
+		klog.Warningf("Requested cleanup for missing RR %q in group %q under zone %q, not applying any change", conf.RRName, conf.RRGroupName, conf.ZoneName)
+
+		return nil
+	}
+
+	klog.Infof("Found existing record %q in group %q under zone %q, updating it", resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
+
+	if !slices.Contains(resouceRecord.RRSet.TXTRecord.Values, ch.Key) {
+		klog.Infof("Challenge key alredy removed from record %q in group %q under zone %q, not applying any change", resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
+
+	} else if len(resouceRecord.RRSet.TXTRecord.Values) == 1 {
+		klog.Infof("Challenge key is last of record %q in group %q under zone %q, deleting record", resouceRecord.RecordName, conf.RRGroupName, conf.ZoneName)
+
+		err = f5xcClient.deleteTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName)
+
+	} else {
+		_, err = f5xcClient.updateTXTResourceRecord(conf.ZoneName, conf.RRGroupName, conf.RRName, resouceRecord, ch.Key, delete_key)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	klog.Infof("Removed DNS challenge record for %s", ch.ResolvedFQDN)
+
 	return nil
 }
 
@@ -111,6 +159,7 @@ func (solver *F5XCDNSProviderSolver) getSecret(namespace string, ref corev1.Secr
 		return "", fmt.Errorf("Missing secret key name")
 	}
 
+	klog.Infof("Loading secret key %q not from secret %s/%s\"", ref.Key, namespace, ref.Name)
 	secret, err := solver.k8sClient.CoreV1().Secrets(namespace).Get(context.TODO(), ref.Name, metav1.GetOptions{})
 	if err != nil {
 		return "", err
@@ -118,7 +167,7 @@ func (solver *F5XCDNSProviderSolver) getSecret(namespace string, ref corev1.Secr
 
 	bytes, ok := secret.Data[ref.Key]
 	if !ok {
-		return "", fmt.Errorf("key %q not found in secret '%s/%s'", ref.Key, namespace, ref.Name)
+		return "", fmt.Errorf("key %q not found in secret \"%s/%s\"", ref.Key, namespace, ref.Name)
 	}
 
 	return string(bytes), nil
