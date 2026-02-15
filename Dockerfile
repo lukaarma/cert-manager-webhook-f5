@@ -20,6 +20,8 @@ FROM alpine:3.22
 # Install minimal runtime
 RUN apk add --no-cache ca-certificates
 
+LABEL org.opencontainers.image.source="https://github.com/lukaarma/cert-manager-webhook-f5"
+
 RUN adduser -D -u 1000 appuser
 USER appuser
 
