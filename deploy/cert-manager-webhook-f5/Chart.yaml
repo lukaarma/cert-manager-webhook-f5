@@ -1,0 +1,18 @@
+apiVersion: v2
+name: cert-manager-webhook-f5
+version: 0.0.1
+appVersion: "0.0.1"
+kubeVersion: ">= 1.22.0-0"
+description: Allow cert-manager to solve DNS challenges using F5 DNS appliances
+home: https://github.com/lukaarma/cert-manager-webhook-f5
+icon: https://raw.githubusercontent.com/cert-manager/cert-manager/master/logo/logo-small.png
+keywords:
+  - cert-manager
+  - f5xc
+  - letsencrypt
+  - tls
+maintainers:
+  - name: lukaarma
+    email: me@lukaarma.net
+sources:
+  - https://github.com/lukaarma/cert-manager-webhook-f5
