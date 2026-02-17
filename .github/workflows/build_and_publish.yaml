@@ -65,7 +65,7 @@ jobs:
           push-to-registry: true
 
       - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.7.0
+        uses: lukaarma/chart-releaser-action@v1.7.1
         with:
           charts_dir: deploy
           skip_upload: true
