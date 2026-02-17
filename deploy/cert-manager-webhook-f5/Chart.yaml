@@ -1,7 +1,7 @@
 apiVersion: v2
 name: cert-manager-webhook-f5
-version: 0.0.1
-appVersion: "0.0.1"
+version: 0.0.4
+appVersion: "0.0.4"
 kubeVersion: ">= 1.22.0-0"
 description: Allow cert-manager to solve DNS challenges using F5 DNS appliances
 home: https://github.com/lukaarma/cert-manager-webhook-f5
