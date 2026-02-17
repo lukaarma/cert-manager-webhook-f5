@@ -67,6 +67,8 @@ jobs:
         with:
           charts_dir: deploy
           skip_upload: true
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Push Charts to GHCR
         run: |
